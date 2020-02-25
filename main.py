@@ -5,15 +5,13 @@ import time
 import re
 import statistics
 
-
-
-#A
+# A
 allTimeGuesses = 0
 
-#C
+# C
 computerHints = []
 
-#G
+# G
 gamesPlayed = 0
 # UP or DOWN
 guessTrendDirection = "UP"
@@ -21,19 +19,19 @@ guessMin = 1
 guessMax = 200
 guessOutcomes = {}
 
-#L
+# L
 lastPlayerGuess = 0
 lastGuessMin = 0
 lastGuessMax = 0
 lastGuessWidth = 0
 
-#M
+# M
 maxRandomNumber = 0
 
-#O
+# O
 oponentStatements = []
 
-#P
+# P
 playerIQ = 0
 playerGuess = -1
 previousGuesses = []
@@ -41,7 +39,7 @@ previousGuesses = []
 #R
 reusedGuessesInt = 0
 
-#S
+# S
 secretNumber = 0
 suspectedNumber = 0
 smartAIOn = True
@@ -50,36 +48,35 @@ suspectCold = []
 suspectWarm = []
 suspectVeryWarm = []
 
-#T
+# T
 thisGameTotalGuesses = 0
 turnNumber = 0
+
+class GameWorld:
+    turn_number = 0
 
 def playerInternalDialog(newThought):
     global thoughts
     thoughts.append(newThought)
 
 def suggestUpperLimit():
-    #provides a smart guessMax
+    # provides a smart guessMax
     global guessMax
     global guessMin
     global lastGuessMax
     global lastGuessMin
     global lastPlayerGuess
+    global newGame
 
-    newGame = False
-
-
-    if (len(oponentStatements)<= 0 or turnNumber == 1):
+    if GameWorld.turn_number < 1:
         newGame = True
 
-
-
-    if newGame == True :
-        #it's a brand new game'
+    if newGame:
+        # it's a brand new game'
         guessMax = maxRandomNumber
         guessMax = ((maxRandomNumber // 4) * 3) + 2
-    if turnNumber == 2:
-        guessMax = ((maxRandomNumber // 2))
+    if GameWorld.turn_number == 2:
+        guessMax = maxRandomNumber // 2
     print("PLAYER - I need a hint for upper")
 
 def findSuspectedNumber():
@@ -100,16 +97,16 @@ def findSuspectedNumber():
 
     guessCount = 0
 
-    #how many guesses have we made?
+    # how many guesses have we made?
     guessCount = len(previousGuesses)
 
-    #what range does VERY COLD make up
-    #what range does COLD make up
-    #what range does WARM make up
-    #what range does VERY WARM make up
+    # what range does VERY COLD make up
+    # what range does COLD make up
+    # what range does WARM make up
+    # what range does VERY WARM make up
 
-    #should we have a conflict if we secretly guess the number is SOMETHING WE'VE ALREADY GUESSED.....??
-    #yeah, probably
+    # should we have a conflict if we secretly guess the number is SOMETHING WE'VE ALREADY GUESSED.....??
+    # yeah, probably
 
     if len(guessOutcomes) > 0:
         for guess in guessOutcomes.keys():
@@ -151,23 +148,23 @@ def findSuspectedNumber():
 
 
 def suggestLowerLimit():
-    #provides a smart guessMin
+    # provides a smart guessMin
     global guessMax
     global guessMin
     global lastGuessMax
     global lastGuessMin
     global lastPlayerGuess
+    global newGame
 
-    newGame = False
 
-    if len(oponentStatements)<= 0:
+    if GameWorld.turn_number < 1:
         newGame = True
 
-    if newGame == True :
-        #it's a brand new game'
-        guessMin = ((maxRandomNumber // 4) * 3 ) + 1
+    if newGame:
+        # it's a brand new game'
+        guessMin = ((maxRandomNumber // 4) * 3) + 1
 
-    if turnNumber == 2:
+    if GameWorld.turn_number == 2:
         guessMin = 1
 
     print("PLAYER - I need a hint for lower")
@@ -184,7 +181,6 @@ def smartAI():
     global playerGuess
     global lastPlayerGuess
     global guessTrendDirection
-    global turnNumber
     global oponentStatements
     global lastGuessMin
     global lastGuessMax
@@ -541,6 +537,11 @@ def generateGame():
     global thoughts
     global suspectedNumber
     global guessOutcomes
+    global newGame
+
+    # this is a new game until the first turn is resolved
+    newGame = True
+
     # clean up re-used globals
     thoughts = []
     guessOutcomes = {}
@@ -561,7 +562,8 @@ def generateGame():
     #
 
 def playGame():
-    #globals
+    # globals
+    # TODO: do away with all these damn globals
     global playerGuess
     global secretNumber
     global gamesPlayed
@@ -571,11 +573,11 @@ def playGame():
     global currentGuessOff
     global previousGuesses
     global thisGameTotalGuesses
-    global turnNumber
 
     thisGameTotalGuesses = 0
-    turnNumber = 0
-    #locals
+    GameWorld.turn_number = 0
+
+    # locals
     guessMin = 1
     guessMax = maxRandomNumber
     lastGuessOff = 0
@@ -593,8 +595,8 @@ def playGame():
     #Guess a new number
     while playerGuess != secretNumber:
         # Each iteration of this loop is a new turn
-        turnNumber = turnNumber + 1
-        print("[TURN "+str(turnNumber)+"- SECRET:"+str(secretNumber)+"]")
+        GameWorld.turn_number = GameWorld.turn_number + 1
+        print("[TURN "+str(GameWorld.turn_number)+"- SECRET:"+str(GameWorld.turn_number)+"]")
         # decide what type of guess we're going to make
         # wild - guess any damn number
         # educated guess within X of last number
@@ -609,13 +611,11 @@ def playGame():
             allTimeGuesses = allTimeGuesses + thisGameTotalGuesses
             oponentReply()
             break
-        else: # Guess was wrong, continue guessing
+        else:
+            # Guess was wrong, continue guessing
             oponentReply()
 
-
-
-
-    #player guesses a unique number
+    # player guesses a unique number
 
 def playerReply():
     global playerGuess
