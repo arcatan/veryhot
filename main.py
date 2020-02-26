@@ -479,7 +479,6 @@ def smartAI():
 def oponentReply():
     global currentGuessOff
     global playerGuess
-    global secretNumber
     global lastGuessOff
     global thisGameTotalGuesses
     global oponentStatements
@@ -487,7 +486,7 @@ def oponentReply():
 
     oponentStatement = ""
     # Compare guess to secretNumber
-    if playerGuess == secretNumber:
+    if playerGuess == GameWorld.secret_number:
         # they got it correct!
         openentStatement = "COMPUTER - I AM SAD, YOU HAVE GUESSED MY SECRET NUMBER. COMPUTER - IT TOOK YOU " + str(thisGameTotalGuesses) + " ATTEMPTS, WHICH IS LAUGHABLE."
         oponentStatements.append(openentStatement)
@@ -534,7 +533,7 @@ def newGuess():
 
     global playerGuess
     global reusedGuesses
-    global secretNumber
+
     global reusedGuessesInt
     global thisGameTotalGuesses
     global currentGuessOff
@@ -555,7 +554,6 @@ def newGuess():
 
 
 def generateGame():
-    global secretNumber
     global playerIQ
     global maxRandomNumber
 
@@ -580,8 +578,7 @@ def generateGame():
 
 
     maxRandomNumber = random.randint(1,100) + 100
-    secretNumber = random.randint(1,maxRandomNumber)
-    # TODO: replace all instances of secretNumber with GameWorld.secret_number
+    GameWorld.secret_number = random.randint(1,maxRandomNumber)
     GameWorld.secret_number = secretNumber
     playerIQ = random.randint(1,10)
 
@@ -594,7 +591,7 @@ def playGame():
     # globals
     # TODO: do away with all these damn globals
     global playerGuess
-    global secretNumber
+
     global gamesPlayed
     global allTimeGuesses
     global maxRandomNumber
@@ -622,7 +619,7 @@ def playGame():
         print("COMPUTER - PLEASE GUESS A NUMBER BETWEEN 1 AND " + str(maxRandomNumber))
 
     # Guess a new number
-    while playerGuess != secretNumber:
+    while playerGuess != GameWorld.secret_number:
         # Each iteration of this loop is a new turn
         GameWorld.turn_number = GameWorld.turn_number + 1
         print("[TURN "+str(GameWorld.turn_number)+"- SECRET:"+str(GameWorld.secret_number)+"]")
@@ -634,8 +631,8 @@ def playGame():
         newGuess()
         playerReply()
         findSuspectedNumber()
-        currentGuessOff = abs(secretNumber - playerGuess)
-        if playerGuess == secretNumber: # player has guessed the answer
+        currentGuessOff = abs(GameWorld.secret_number - playerGuess)
+        if playerGuess == GameWorld.secret_number: # player has guessed the answer
             gamesPlayed = gamesPlayed + 1
             if gamesPlayed > GameWorld.games_per_session:
                 exit()
@@ -667,5 +664,5 @@ print("You made " + str(PlayerTwo.total_guesses) + " guesses.")
 print("You averaged " + str (PlayerTwo.total_guesses / gamesPlayed) + " guesses per game.")
 print("The computer is dumb and made repetative guesses " + str(reusedGuessesInt) + " times.")
 
-#for statement in guessOutcomes.items():
+# for statement in guessOutcomes.items():
 #    print(statement)
