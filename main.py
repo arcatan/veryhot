@@ -26,7 +26,7 @@ lastGuessMax = 0
 lastGuessWidth = 0
 
 # M
-maxRandomNumber = 0
+# maxRandomNumber = 0
 
 # O
 oponentStatements = []
@@ -556,18 +556,13 @@ def newGuess():
 def generateGame():
     global playerIQ
     global maxRandomNumber
-
     global reusedGuessesInt
     global oponentStatements
-
     global thoughts
     global suspectedNumber
     global guessOutcomes
-
     # this is a new game until the first turn is resolved
-
     # clean up re-used globals
-
     thoughts = []
     guessOutcomes = {}
     oponentStatements = []
@@ -575,17 +570,12 @@ def generateGame():
     suspectedNumber = 1
 
     reusedGuessesInt = 0
+    GameWorld.max_random_number = random.randint(1, 6) + random.randint(0, 48) + random.randint(0, 96) + 100
+    GameWorld.secret_number = random.randint(1, GameWorld.max_random_number)
+    maxRandomNumber = GameWorld.max_random_number
 
-
-    maxRandomNumber = random.randint(1,100) + 100
-    GameWorld.secret_number = random.randint(1,maxRandomNumber)
-    GameWorld.secret_number = secretNumber
     playerIQ = random.randint(1,10)
 
-    #decide what type of opponent we have
-    #loose
-    #specific
-    #
 
 def playGame():
     # globals
@@ -594,7 +584,7 @@ def playGame():
 
     global gamesPlayed
     global allTimeGuesses
-    global maxRandomNumber
+    # global maxRandomNumber
     global reusedGuessesInt
     global currentGuessOff
 
@@ -605,18 +595,18 @@ def playGame():
 
     # locals
     guessMin = 1
-    guessMax = maxRandomNumber
+    guessMax = GameWorld.max_random_number
     lastGuessOff = 0
     currentGuessType = "wild"
 
     print("")
     print("---------------[GAME "+ str(gamesPlayed) + "]---------------")
     print("")
-    print("Guess a number between 1 and " + str(maxRandomNumber))
+    print("Guess a number between 1 and " + str(GameWorld.max_random_number) + ". [the secret is " + str(GameWorld.secret_number) + "]")
 
     # start the guessing game
     if playerGuess == -1:
-        print("COMPUTER - PLEASE GUESS A NUMBER BETWEEN 1 AND " + str(maxRandomNumber))
+        print("COMPUTER - PLEASE GUESS A NUMBER BETWEEN 1 AND " + str(GameWorld.max_random_number))
 
     # Guess a new number
     while playerGuess != GameWorld.secret_number:
