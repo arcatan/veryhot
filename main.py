@@ -5,13 +5,14 @@ import time
 import re
 import statistics
 
+from datetime import datetime
+start_time = datetime.now()
+
 # A
 allTimeGuesses = 0
 
 # C
 computerHints = []
-
-
 
 # G
 gamesPlayed = 1
@@ -42,7 +43,6 @@ opponent_statements = []
 playerIQ = 0
 playerGuess = -1
 
-
 #R
 reusedGuessesInt = 0
 
@@ -59,9 +59,8 @@ suspectVeryWarm = []
 # T
 thisGameTotalGuesses = 0
 
-
 class GameWorld:
-    games_per_session = 100
+    games_per_session = 150000
     turn_number = 0
     last_player_guess = 0
     secret_number = 0
@@ -99,6 +98,10 @@ class Holmes:
     very_warm_width = 10
     warm_width = 20
     cold_width = 20
+    known_cold = []
+    known_warm = []
+    known_very_warm = []
+    known_very_cold = []
 
 def playerInternalDialog(newThought):
     global thoughts
@@ -141,12 +144,16 @@ def reset_holmes():
     Holmes.used_numbers = []
     Holmes.available_numbers = []
     Holmes.confidence_rating = {}
-
+    Holmes.known_very_cold = []
+    Holmes.known_very_warm = []
+    Holmes.known_warm = []
+    Holmes.known_cold = []
     i = 0
-    for i in range(1, GameWorld.max_random_number):
+    for i in range(1, (GameWorld.max_random_number + 1)):
         # print("Adding numbers to Holmes dictionary " + str(i))
         Holmes.available_numbers.append(i)
-    for i in range(1, GameWorld.max_random_number):
+
+    for i in range(1, (GameWorld.max_random_number + 1)):
         # print("Adding numbers to Holmes dictionary " + str(i))
         holmes_confidence(i, 0)
 
@@ -169,6 +176,57 @@ def holmes_confidence(number, change):
 
     # print("[HOLMES] - I've reevaluated ", number, " and scored it: ", change, " Current value: ", Holmes.confidence_rating[number])
 
+def detective_holmes():
+    # what numbers are very warm, warm, cold, and very cold
+
+    # add last guess to group
+    if opponent_statements[(len(opponent_statements) - 1)].lower().find("very warm") > 0:
+        Holmes.known_very_warm.append(lastPlayerGuess)
+    elif opponent_statements[(len(opponent_statements) - 1)].lower().find("warm") > 0:
+        Holmes.known_warm.append(lastPlayerGuess)
+    elif opponent_statements[(len(opponent_statements) - 1)].lower().find("very cold") > 0:
+        Holmes.known_very_cold.append(lastPlayerGuess)
+    else:
+        Holmes.known_cold.append(lastPlayerGuess)
+
+    if len(Holmes.known_very_warm) >= 2:
+        Holmes.very_warm_width = max(Holmes.known_very_warm) - min(Holmes.known_very_warm)
+        print("[HOLMES] - LVW ", min(Holmes.known_very_warm), ", HVW ", max(Holmes.known_very_warm))
+        mean_very_warm = int(round(statistics.mean(Holmes.known_very_warm)))
+        if len(Holmes.known_warm) > 1:
+            high_warm = max(Holmes.known_warm)
+        else:
+            high_warm = mean_very_warm - Holmes.very_warm_width
+        if high_warm > mean_very_warm > min(Holmes.known_warm):
+            # we sorta know where the very warm range is
+            upper_width = max(Holmes.known_warm) - max(Holmes.known_very_warm)
+            lower_width = min(Holmes.known_very_warm) - min(Holmes.known_warm)
+            Holmes.warm_width = (upper_width + lower_width) // 2
+            low = mean_very_warm - Holmes.very_warm_width
+            high = mean_very_warm + Holmes.very_warm_width
+            for number in range(low, high):
+                holmes_confidence(number, 20)
+                # add a small bump to numbers around the mean value range for very warm
+    elif len(Holmes.known_very_warm) == 1:
+        # we only know 1 very warm value
+        if len(Holmes.known_very_cold) > 1:
+            # we know two very cold
+            if min(Holmes.known_very_cold) < max(Holmes.known_very_warm) < max(Holmes.known_very_cold):
+                # we have very cold values on both sides of very warm
+                low = Holmes.known_very_warm[0] - 2
+                high = Holmes.known_very_warm[0] + 2
+                for number in range(low, high):
+                    holmes_confidence(number, 20)
+
+    if len(Holmes.known_warm) > 2:
+        Holmes.warm_width = max(Holmes.known_warm) - min(Holmes.known_warm)
+
+    if len(Holmes.known_very_warm) < 1 and len(Holmes.known_very_cold) > 3:
+        # we know many very colds, and no very warm
+        print("[HOLMES] - I know very cold values. Shouldn't I be able to deduce where very warm is???")
+
+    print("[HOLMES] - Detective Holmes ran - widths: vw ", Holmes.very_warm_width, ", w ", Holmes.warm_width)
+
 def holmesAI():
     global guessMax
     global guessMin
@@ -176,13 +234,14 @@ def holmesAI():
     global opponent_statements
     global lastPlayerGuess
 
-    # wipe Holmes' memory for the new game
+    # if it's a new game, wipe Holmes' memory for the new game
     if GameWorld.turn_number == 1:
         reset_holmes()
         print("[HOLMES] - I am fresh and new.")
 
     # remove previous guess from list of available numbers to guess from
-    if lastPlayerGuess > 0:
+    if lastPlayerGuess > 0 and GameWorld.turn_number > 1:
+        detective_holmes()
         try:
             Holmes.available_numbers.remove(lastPlayerGuess)
         except:
@@ -200,10 +259,8 @@ def holmesAI():
                 low_number = 1
             if high_number > GameWorld.max_random_number:
                 high_number = GameWorld.max_random_number
-
             for number in range(low_number, high_number):
-                holmes_confidence(number, 1)
-
+                holmes_confidence(number, 10)
 
     # update confidence rating based on last guess
     if GameWorld.turn_number > 1:
@@ -318,7 +375,6 @@ def holmesAI():
 
     v = []
     k = []
-
     # print("Keys: " + str(k))
     player_guess = 0
     i = 0
@@ -1089,6 +1145,8 @@ def generateGame():
     global thoughts
     global suspectedNumber
     global guessOutcomes
+    global lastPlayerGuess
+
 
     # reset all guessed
     Guessed.very_cold = []
@@ -1100,6 +1158,7 @@ def generateGame():
 
     # this is a new game until the first turn is resolved
     # clean up re-used globals
+    lastPlayerGuess = 0
     thoughts = []
     guessOutcomes = {}
     opponent_statements = []
@@ -1162,7 +1221,7 @@ def playGame():
 
         newGuess()
         playerReply()
-        findSuspectedNumber()
+        # findSuspectedNumber()
         currentGuessOff = abs(GameWorld.secret_number - playerGuess)
         if playerGuess == GameWorld.secret_number:
             recordVictory()
@@ -1185,20 +1244,70 @@ def playerReply():
     # TODO: get dynamic player name here
     print("PLAYER - [" + str(guessMin) + "-" + str(guessMax) + "]... I GUESS: " + str(playerGuess))
 
+def report():
+    print("")
+    print("--------------------------------[REPORT]-------------------------------------")
+    print("")
+
+    session_total_guesses = 0
+    for game in GameWorld.total_guess_each_game:
+        session_total_guesses = session_total_guesses + GameWorld.total_guess_each_game[game]
+        print("Game:" + str(game) + " - Guesses = " + str(GameWorld.total_guess_each_game[game]))
+
+    a = []
+    b = []
+    a = list(GameWorld.total_guess_each_game.values())
+    b = list(GameWorld.total_guess_each_game.keys())
+    best_game_number = b[a.index(min(a))]
+    worst_game_number = b[a.index(max(a))]
+
+    print("The computer played a total of " + str(gamesPlayed - 1) + " games.")
+    print("It made " + str(session_total_guesses) + " guesses.")
+    print("It averaged " + str(session_total_guesses / (gamesPlayed - 1)) + " guesses per game.")
+    print("Best  - Game", best_game_number, ": ", GameWorld.total_guess_each_game[best_game_number])
+    print("Worst - Game", worst_game_number, ": ", GameWorld.total_guess_each_game[worst_game_number])
+    print("Mode ", statistics.mode(GameWorld.total_guess_each_game.values()))
+    run_time = datetime.now() - start_time
+    print("Script completed in:", run_time)
+    # for statement in guessOutcomes.items():
+    #    print(statement)
+
+
 while gamesPlayed <= GameWorld.games_per_session:
 
     generateGame()
     playGame()
+
+# Session finished, give us the stats
+report()
+
+'''
+print("")
+print("--------------------------------[REPORT]-------------------------------------")
+print("")
 
 session_total_guesses = 0
 for game in GameWorld.total_guess_each_game:
     session_total_guesses = session_total_guesses + GameWorld.total_guess_each_game[game]
     print("Game:" + str(game) + " - Guesses = " + str(GameWorld.total_guess_each_game[game]))
 
-print("The computer played a total of " + str(gamesPlayed - 1) + " games.")
-print("You made " + str(session_total_guesses) + " guesses.")
-print("You averaged " + str(session_total_guesses / (gamesPlayed - 1)) + " guesses per game.")
-print("The computer is dumb and made repetative guesses " + str(reusedGuessesInt) + " times.")
+a = []
+b = []
+a = list(GameWorld.total_guess_each_game.values())
+b = list(GameWorld.total_guess_each_game.keys())
+best_game_number = b[a.index(min(a))]
+worst_game_number = b[a.index(max(a))]
 
+
+print("The computer played a total of " + str(gamesPlayed - 1) + " games.")
+print("It made " + str(session_total_guesses) + " guesses.")
+print("It averaged " + str(session_total_guesses / (gamesPlayed - 1)) + " guesses per game.")
+print("Best  - Game", best_game_number, ": ", GameWorld.total_guess_each_game[best_game_number])
+print("Worst - Game", worst_game_number, ": ", GameWorld.total_guess_each_game[worst_game_number])
+
+
+run_time = datetime.now() - start_time
+print("Script completed in:", run_time)
 # for statement in guessOutcomes.items():
 #    print(statement)
+'''
