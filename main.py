@@ -1,4 +1,7 @@
-#This program will pit the computer against the computer, trying to guess a secret number
+# This program will pit the computer against the computer, trying to guess a secret number
+import pygame
+
+pygame.init()
 
 import random
 import time
@@ -6,6 +9,7 @@ import re
 import statistics
 
 from datetime import datetime
+
 start_time = datetime.now()
 
 # A
@@ -20,6 +24,9 @@ guessTrendDirection = "UP"
 guessMin = 1
 guessMax = 200
 guessOutcomes = {}
+guesses_made = []
+guess_ID = 0
+guess_blocks = []
 
 # H
 holmes_AI_on = True
@@ -35,6 +42,7 @@ lastGuessWidth = 0
 
 # M
 # maxRandomNumber = 0
+moriarty_AI_on = False
 
 # O
 opponent_statements = []
@@ -43,7 +51,7 @@ opponent_statements = []
 playerIQ = 0
 playerGuess = -1
 
-#R
+# R
 reusedGuessesInt = 0
 
 # S
@@ -59,8 +67,38 @@ suspectVeryWarm = []
 # T
 thisGameTotalGuesses = 0
 
+# Game Window
+screen_width = 532
+screen_height = 500
+win = pygame.display.set_mode((screen_width, screen_height))
+background_colour = (0, 0, 0)
+win.fill(background_colour)
+pygame.display.flip()
+side_padding = 10
+(block_height, block_width) = (32, 32)
+
+
+# game rows / cols
+# 15 x 15 = 225
+# 15 x 4 = 60
+
+class Guess:
+    last_guess_uid = 0
+
+    def __init__(self, guess_ID):
+        self.guess_UID = guess_ID
+        self.guesser = ""
+        self.guessed_number = 0
+        self.result = ""
+        self.game = 0
+        self.x = 0
+        self.y = 0
+        self.height = 32
+        self.width = 32
+
+
 class GameWorld:
-    games_per_session = 150000
+    games_per_session = 100
     turn_number = 0
     last_player_guess = 0
     secret_number = 0
@@ -68,6 +106,7 @@ class GameWorld:
     max_random_number = 100
     min_random_number = 1
     total_guess_each_game = {}
+
 
 class PlayerTwo:
     total_guesses = 0
@@ -81,12 +120,14 @@ class PlayerTwo:
     cold_guess = []
     guessed_numbers = []
 
+
 class Guessed:
     numbers = []
     very_cold = []
     very_warm = []
     cold = []
     warm = []
+
 
 class Holmes:
     suspected_number = 1
@@ -103,15 +144,174 @@ class Holmes:
     known_very_warm = []
     known_very_cold = []
 
+
+class Moriarty:
+    available_numbers = []
+    confidence_rating = {}
+    guess_results = {}
+    very_warm_range = []
+    lower_very_cold_range = []
+    upper_very_cold_range = []
+    lower_warm_range = []
+    upper_warm_range = []
+    suspected_number = -1
+
+
+def reset_moriarty():
+    Moriarty.available_numbers = []
+    Moriarty.confidence_rating = {}
+    Moriarty.very_warm_range = [0, 0]
+    Moriarty.lower_very_cold_range = [0, 0]
+    Moriarty.upper_very_cold_range = [0, 0]
+    Moriarty.lower_warm_range = [0, 0]
+    Moriarty.upper_warm_range = [0, 0]
+    Moriarty.suspected_number = -1
+
+    for number in range(1, (GameWorld.max_random_number + 1)):
+        moriarty_confidence(number, 1)
+    one_forth = int(round(GameWorld.max_random_number / 4))
+    moriarty_confidence(one_forth, 20)
+    moriarty_confidence((one_forth * 2), 20)
+    moriarty_confidence((one_forth * 3), 20)
+    print("[MORIARTY] - I am ready for a new game. Bring forth the challenge.")
+
+
+def moriarty_confidence(number, change):
+    # number, amount to change confidence (+/-)
+    if number < 1 or number > GameWorld.max_random_number:
+        return
+    try:
+        # verify the number exists
+        current_confidence = Moriarty.confidence_rating[number]
+        # update the value
+        Moriarty.confidence_rating[number] = current_confidence + change
+    except:
+        Moriarty.confidence_rating[number] = change
+    print("[MORIARTY] - Updated confidence for: ", number, " by ", change, " to ", Moriarty.confidence_rating[number])
+
+
+def moriarty_guess_result(number, result):
+    Moriarty.guess_results[number] = result
+
+
+def professor_moriarty():
+    # the main AI of Moriarty - the nemesis of Dr Holmes
+    global lastPlayerGuess
+    global playerGuess
+
+    # start new games with a fresh memory
+    if GameWorld.turn_number <= 1:
+        reset_moriarty()
+    else:
+        print(Moriarty.confidence_rating)
+        change = (abs(Moriarty.confidence_rating[lastPlayerGuess])) * -100
+        if change > -10:
+            change = -1000
+        moriarty_confidence(lastPlayerGuess, change)
+
+    # Moriarty wants nothing but to find the mean of very warm range
+    # Moriarty.very_warm_range = []
+    # Moriarty.lower_very_cold_range = []
+    # Moriarty.upper_very_cold_range = []
+    # Moriarty.lower_warm_range = []
+    # Moriarty.upper_warm_range = []
+    # Moriarty.suspected_number = -1
+
+    if GameWorld.turn_number > 1:
+        if opponent_statements[(len(opponent_statements) - 1)].lower().find("very warm") > 0:
+            moriarty_guess_result(lastPlayerGuess, "very warm")
+            if Moriarty.very_warm_range[0] >= lastPlayerGuess:
+                Moriarty.very_warm_range[0] = lastPlayerGuess
+            elif Moriarty.very_warm_range[1] <= lastPlayerGuess:
+                Moriarty.very_warm_range[1] = lastPlayerGuess
+        elif opponent_statements[(len(opponent_statements) - 1)].lower().find("warm") > 0:
+            moriarty_guess_result(lastPlayerGuess, "warm")
+        elif opponent_statements[(len(opponent_statements) - 1)].lower().find("very cold") > 0:
+            moriarty_guess_result(lastPlayerGuess, "very cold")
+            moriarty_confidence(lastPlayerGuess, -100)
+        else:
+            moriarty_guess_result(lastPlayerGuess, "cold")
+    # check and or update ranges
+    if Moriarty.very_warm_range[0] != 0 and Moriarty.very_warm_range[1] != 0:
+        mean_very_warm = statistics.mean(Moriarty.very_warm_range)
+        moriarty_confidence(mean_very_warm, 10)
+    elif Moriarty.very_warm_range[0] != 0:
+        moriarty_confidence(Moriarty.very_warm_range[0], 1)
+        moriarty_confidence((Moriarty.very_warm_range[0] + 10), 10)
+
+    elif Moriarty.very_warm_range[1] != 0:
+        moriarty_confidence(Moriarty.very_warm_range[0], 1)
+        moriarty_confidence((Moriarty.very_warm_range[1] - 10), 10)
+
+    while True:
+        moriarty_con_values = list(Moriarty.confidence_rating.values())
+        moriarty_con_numbers = list(Moriarty.confidence_rating.keys())
+        Moriarty.suspected_number = moriarty_con_numbers[moriarty_con_values.index(max(moriarty_con_values))]
+        player_guess = Moriarty.suspected_number
+        lower = player_guess - 1
+        upper = player_guess + 1
+        if lower < 1:
+            lower = 1
+        if upper > GameWorld.max_random_number:
+            upper = GameWorld.max_random_number
+        print("[MORIARTY] - I am examining ", upper, " and ", lower)
+
+        if Moriarty.confidence_rating[lower] <= 0:
+            # lower the confidence for this guess
+            moriarty_confidence(playerGuess, -10)
+
+        elif Moriarty.confidence_rating[upper] <= 0:
+            moriarty_confidence(playerGuess, -10)
+        else:
+            break
+
+    moriarty_con_values = []
+    moriarty_con_numbers = []
+    moriarty_con_values = list(Moriarty.confidence_rating.values())
+    moriarty_con_numbers = list(Moriarty.confidence_rating.keys())
+    Moriarty.suspected_number = moriarty_con_numbers[moriarty_con_values.index(max(moriarty_con_values))]
+    player_guess = Moriarty.suspected_number
+    playerGuess = player_guess
+    # random.randint(1, GameWorld.max_random_number)
+    print("PLAYER GUESS ", player_guess, ". Suspected: ", Moriarty.suspected_number)
+    # playerGuess = player_guess
+    # TODO: change playerGuess to player_guess in all instances
+    print("[MORIARTY] - I will guess now, ", playerGuess)
+    return playerGuess
+
+
 def playerInternalDialog(newThought):
     global thoughts
     thoughts.append(newThought)
+
 
 def recordVictory():
     # player has guess the correct value
     global gamesPlayed
     game_update = {gamesPlayed: GameWorld.turn_number}
     GameWorld.total_guess_each_game.update(game_update)
+
+def draw_guess(win, playerGuess, side_padding, block_height, block_width, guess_blocks):
+    x = 0
+    y = 0
+    row = 0
+    col = 0
+    row = (playerGuess // 15) + 1
+    col = 15 - ((row * 15) - playerGuess)
+    # col = 15 - (((row + 1) * 15) - playerGuess)
+    x = (block_width * col) + side_padding
+    y = (block_width * row) + side_padding
+    color = (0, 255, 255)
+    # draw our secret number
+    print("Adding Guess! ", x, y, ".")
+    # new_guess = (win, color, ((x, y), (block_height, block_width)))
+    guess_blocks.append([(color), (x, y, block_height, block_width)])
+    # guess_boxes.append(new_guess)
+    # pygame.draw.rect(guess_boxes)
+    # pygame.display.update()
+    #pygame.display.update((x, y), (block_height, block_width))
+
+    time.sleep(.2)
 
 def suggest_upper_limit():
     global guessMax
@@ -120,7 +320,7 @@ def suggest_upper_limit():
     if GameWorld.turn_number == 1:
         guessMax = GameWorld.max_random_number
         # guess slightly above 75% of the range
-        #guessMin = ((GameWorld.max_random_number // 4) * 3) + 2
+        # guessMin = ((GameWorld.max_random_number // 4) * 3) + 2
         # alternative method of finding 75% + 2
         guessMin = int(round(GameWorld.max_random_number * .75) + 2)
         print("PLAYER - A new game, how interesting. Upper hint: " + str(guessMax))
@@ -134,9 +334,10 @@ def suggest_upper_limit():
     elif GameWorld.turn_number == 3:
         guessMax = GameWorld.max_random_number // 2
     else:
-        guessMax = (GameWorld.max_random_number // 4)*2
+        guessMax = (GameWorld.max_random_number // 4) * 2
 
     PlayerTwo.suspected_confidence = 1
+
 
 def reset_holmes():
     Holmes.suspected_number = 1
@@ -159,8 +360,9 @@ def reset_holmes():
 
     holmes_confidence(1, 1)
     holmes_confidence(GameWorld.max_random_number, 1)
-    three_forths = (GameWorld.max_random_number // 4)*3
+    three_forths = (GameWorld.max_random_number // 4) * 3
     holmes_confidence(three_forths, 100)
+
 
 def holmes_confidence(number, change):
     # number, amount to change confidence (+/-)
@@ -175,6 +377,7 @@ def holmes_confidence(number, change):
         Holmes.confidence_rating[number] = change
 
     # print("[HOLMES] - I've reevaluated ", number, " and scored it: ", change, " Current value: ", Holmes.confidence_rating[number])
+
 
 def detective_holmes():
     # what numbers are very warm, warm, cold, and very cold
@@ -227,12 +430,18 @@ def detective_holmes():
 
     print("[HOLMES] - Detective Holmes ran - widths: vw ", Holmes.very_warm_width, ", w ", Holmes.warm_width)
 
+
 def holmesAI():
     global guessMax
     global guessMin
     global playerGuess
     global opponent_statements
     global lastPlayerGuess
+    global guess_ID
+    global block_width
+    global block_height
+    global win
+    global side_padding
 
     # if it's a new game, wipe Holmes' memory for the new game
     if GameWorld.turn_number == 1:
@@ -362,7 +571,7 @@ def holmesAI():
                 holmes_confidence(number, 1)
 
     else:
-        #first round guess
+        # first round guess
         three_forths_number = (GameWorld.max_random_number // 4) * 3
         new_entry = {three_forths_number: 100}
         Holmes.confidence_rating.update(new_entry)
@@ -407,12 +616,15 @@ def holmesAI():
     if slow_game:
         time.sleep(2)
     Holmes.used_numbers.append(player_guess)
-
+    # TODO: Add Guess class
+    Guess.last_guess_uid = Guess.last_guess_uid + 1
+    new_guess = Guess(Guess.last_guess_uid)
+    guesses_made.append(new_guess)
+    draw_guess(win, playerGuess, side_padding, block_height, block_width, guess_blocks)
     return playerGuess
 
+
 def jugAI():
-
-
     global guessMax
     global guessMin
     global playerGuess
@@ -422,10 +634,8 @@ def jugAI():
     player_name = "JUG_AI"
     is_very_warm = False
 
-
     upper_very_warm = GameWorld.max_random_number
     lower_very_warm = 1
-
 
     # if opponent_statements[(len(opponent_statements) - 1)].lower().find("very warm") > 0:
     #    is_very_warm = True
@@ -545,14 +755,16 @@ def jugAI():
                 jug_guess_min = 1
                 jug_guess_max = GameWorld.max_random_number // 2
 
-        print("[JUG_AI] - I KNOW LIKE ALL THE DAMN VERY COLD VALUES!" + str(lower_very_cold) + " - " + str(upper_very_cold))
+        print("[JUG_AI] - I KNOW LIKE ALL THE DAMN VERY COLD VALUES!" + str(lower_very_cold) + " - " + str(
+            upper_very_cold))
 
     elif GameWorld.turn_number > 10:
         # we have made ten bad guesses
 
         # can we find a hole in the very cold values?
-        print("[JUG_AI] - I KNOW " + str(len(Guessed.very_cold)) + " VERY COLD, " + str(len(Guessed.cold))  + " COLD, " + str(len(Guessed.warm)) + " WARM, and " + str(len(Guessed.very_warm)) + " VERY WARM")
-
+        print("[JUG_AI] - I KNOW " + str(len(Guessed.very_cold)) + " VERY COLD, " + str(
+            len(Guessed.cold)) + " COLD, " + str(len(Guessed.warm)) + " WARM, and " + str(
+            len(Guessed.very_warm)) + " VERY WARM")
 
         if opponent_statements[(len(opponent_statements) - 1)].lower().find("very warm") == 0 and len(Guessed.warm) > 2:
             middle_warm = (Guessed.warm / len(Guessed.warm))
@@ -568,7 +780,7 @@ def jugAI():
 
     # first turn instructions
     if jug_has_guess:
-        print("["+ player_name + "] - HAS GUESS.")
+        print("[" + player_name + "] - HAS GUESS.")
         # don't fight the jug AI, let it guess!
         guessMin = jug_guess_min
         guessMax = jug_guess_max
@@ -576,7 +788,7 @@ def jugAI():
         jug_has_guess = False
 
     elif GameWorld.turn_number == 1:
-        print("["+ player_name + "] - I AM READY TO PLAY THE GUESSING GAME.")
+        print("[" + player_name + "] - I AM READY TO PLAY THE GUESSING GAME.")
         coin_toss = random.randint(1, 2)
         # heads (2) - go > 75%
         if coin_toss == 1:
@@ -598,8 +810,6 @@ def jugAI():
     else:
         guessMin = 1
         guessMax = GameWorld.max_random_number
-
-
 
     # make sure we're not guessing an illegal number
 
@@ -632,7 +842,7 @@ def jugAI():
     while True:
         playerGuess = random.randint(guessMin, guessMax)
 
-        if not(playerGuess in PlayerTwo.guessed_numbers):
+        if not (playerGuess in PlayerTwo.guessed_numbers):
             print("[" + player_name + "] - " + str(playerGuess) + " IS UNIQUE, I GUESS!")
             break
         elif (guessMax - guessMin) < i:
@@ -652,6 +862,7 @@ def jugAI():
         print("guess " + str(playerGuess) + " min " + str(guessMin) + " max " + str(guessMax))
         i = i + 1
 
+
 def suggest_lower_limit():
     # provides a smart guessMin
     global guessMax
@@ -665,6 +876,7 @@ def suggest_lower_limit():
     PlayerTwo.suspected_confidence = 1
     print("PLAYER - I need a hint for lower, " + str(guessMin))
 
+
 def findSuspectedNumber():
     global suspectedNumber
     global opponent_statements
@@ -673,7 +885,6 @@ def findSuspectedNumber():
     global suspectCold
     global suspectWarm
     global suspectVeryWarm
-
 
     suspectVeryWarm = []
     suspectWarm = []
@@ -693,23 +904,23 @@ def findSuspectedNumber():
 
     if len(guessOutcomes) > 0:
         for guess in guessOutcomes.keys():
-            #print(guessOutcomes[guess])
+            # print(guessOutcomes[guess])
             if guessOutcomes[guess].lower().find("very warm") > 0:
                 # this is a very warm value
                 suspectVeryWarm.append(guess)
-                #print("Very warm number added - " + str(guess))
+                # print("Very warm number added - " + str(guess))
             elif guessOutcomes[guess].lower().find("warm") > 0:
                 # this is a very warm value
                 suspectWarm.append(guess)
-                #print("Warm number added - " + str(guess))
+                # print("Warm number added - " + str(guess))
             elif guessOutcomes[guess].lower().find("very cold") > 0:
                 # this is a very cold value
                 suspectVeryCold.append(guess)
-                #print("Verycold number added - " + str(guess))
+                # print("Verycold number added - " + str(guess))
             elif guessOutcomes[guess].lower().find("cold") > 0:
                 # this is a cold value
                 suspectCold.append(guess)
-                #print("Cold number added - " + str(guess))
+                # print("Cold number added - " + str(guess))
             else:
                 # print("I'm having an error showing outcomes")
                 a = 1
@@ -730,7 +941,9 @@ def findSuspectedNumber():
     if suspectedNumber in PlayerTwo.guessed_numbers:
         suspectedNumber = random.randint(guessMin, guessMax)
 
-    print("PLAYER - [C:" + str(PlayerTwo.suspected_confidence) + "] I secretly suspect the number is:" + str(suspectedNumber))
+    print("PLAYER - [C:" + str(PlayerTwo.suspected_confidence) + "] I secretly suspect the number is:" + str(
+        suspectedNumber))
+
 
 def smartAI():
     # Improves the guessing ability
@@ -822,49 +1035,54 @@ def smartAI():
 
         print(str(PlayerTwo.guessed_numbers)[1:-1])
 
-        #print(mostRecentStatement)
-        if (len(opponent_statements) <= 3): #first three guessess use suggestLower() and suggestUpper()
+        # print(mostRecentStatement)
+        if (len(opponent_statements) <= 3):  # first three guessess use suggestLower() and suggestUpper()
             print("PLAYER - Okay, here we go!")
             newThought = "It's a new game."
             needSuggestionUpper = True
             needSuggestionLower = True
-            playerGuess = random.randint(guessMin, guessMax) #
-        elif (mostRecentStatement.lower().find("very warm") > 0 and len(opponent_statements) >= 3): # guess is great
+            playerGuess = random.randint(guessMin, guessMax)  #
+        elif (mostRecentStatement.lower().find("very warm") > 0 and len(opponent_statements) >= 3):  # guess is great
             if previousOpponentStatement.lower().find("very warm") > 0:
-                #last two guessess were very warm
+                # last two guessess were very warm
                 if (opponent_statements[(len(opponent_statements) - 4)].lower().find("very warm") > 0):
-                    #last three guesses were very warm
+                    # last three guesses were very warm
                     # which way have we been guessing?
                     if suspectedNumber not in PlayerTwo.guessed_numbers:
                         print("PLAYER - I THINK I KNOW THE ANSWER!!!")
                         guessMin = suspectedNumber
                         guessMax = suspectedNumber
-                    elif PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] > PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]:
-                        #we're going up - keep going down
+                    elif PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] > PlayerTwo.guessed_numbers[
+                        len(PlayerTwo.guessed_numbers) - 1]:
+                        # we're going up - keep going down
                         print("PLAYER - Going down!")
-                        guessMin = lastPlayerGuess - abs(lastPlayerGuess - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2]) - 2
+                        guessMin = lastPlayerGuess - abs(
+                            lastPlayerGuess - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2]) - 2
                         guessMax = lastPlayerGuess - 1
-                    elif PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] < PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]:
-                        #we're going up!
+                    elif PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] < PlayerTwo.guessed_numbers[
+                        len(PlayerTwo.guessed_numbers) - 1]:
+                        # we're going up!
                         print("PLAYER - Going up!.")
                         guessMin = lastPlayerGuess + 1
                         guessMax = lastPlayerGuess + 5
-                    elif PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] == PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]:
+                    elif PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] == PlayerTwo.guessed_numbers[
+                        len(PlayerTwo.guessed_numbers) - 1]:
                         # we're trying the same number
                         print("PLAYER - I'm an idiot and guessed the same number.")
                         guessMin = lastPlayerGuess + 5
                         guessMax = lastPlayerGuess + 10
-                    elif PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 3] > PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]:
+                    elif PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 3] > PlayerTwo.guessed_numbers[
+                        len(PlayerTwo.guessed_numbers) - 1]:
                         print("PLAYER - I'm stuck!")
                         guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2]
-                        guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) -1]
+                        guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]
                     else:
                         print("PLAYER - This game is hard")
                         guessMin = (maxRandomNumber - lastPlayerGuess) - lastPlayerGuess
                         guessMax = (maxRandomNumber - lastPlayerGuess) + lastPlayerGuess
                         # we are stuck
-                elif(opponent_statements[(len(opponent_statements) - 3)].lower().find("very warm") > 0):
-                    print ("PLAYER - I'm on a roll!!")
+                elif (opponent_statements[(len(opponent_statements) - 3)].lower().find("very warm") > 0):
+                    print("PLAYER - I'm on a roll!!")
                     guessMin = lastGuessMin - 10
                     guessMax = lastGuessMax + 10
                 else:
@@ -874,8 +1092,12 @@ def smartAI():
                     guessMax = lastPlayerGuess + 1
             elif previousOpponentStatement.lower().find("warm") > 0:
                 print("PLAYER - I have an idea. It's close.")
-                guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - abs(PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1])
-                guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] + abs(PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1])
+                guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - abs(
+                    PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] - PlayerTwo.guessed_numbers[
+                        len(PlayerTwo.guessed_numbers) - 1])
+                guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] + abs(
+                    PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] - PlayerTwo.guessed_numbers[
+                        len(PlayerTwo.guessed_numbers) - 1])
             elif previousOpponentStatement.lower().find("cold") > 0:
                 print("PLAYER - I knew it, so close.")
                 guessMin = lastPlayerGuess - 5
@@ -897,9 +1119,11 @@ def smartAI():
                     guessMin = maxRandomNumber - lastPlayerGuess
                     guessMax = maxRandomNumber
             elif previousOpponentStatement.lower().find("cold") > 0:
-                #we went the wrong way, turn back
+                # we went the wrong way, turn back
                 print("PLAYER - I went the wrong way.")
-                guessMin = lastGuessMax + (maxRandomNumber // PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1])
+                guessMin = lastGuessMax + (
+                            maxRandomNumber // PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] -
+                            PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1])
                 guessMax = lastGuessMin + 20
             else:
                 print("PLAYER - I am the horrible")
@@ -912,19 +1136,21 @@ def smartAI():
                     guessMax = lastGuessMax
         elif mostRecentStatement.lower().find("cold") > 0:  # guess is very bad
 
-            if (opponent_statements[(len(PlayerTwo.guessed_numbers)-1)]).lower().find("warm") > 0:
+            if (opponent_statements[(len(PlayerTwo.guessed_numbers) - 1)]).lower().find("warm") > 0:
                 print("PLAYER - Crap, I went the wrong way.")
                 # lastGuessMin & lastGuessMax should influence our decension here
-                guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) -1] - abs(lastGuessMin)
-                guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) -1] + abs(maxRandomNumber - lastGuessMax)
-            elif(opponent_statements[(len(PlayerTwo.guessed_numbers)-1)]).lower().find("very warm") > 0:
+                guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - abs(lastGuessMin)
+                guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] + abs(
+                    maxRandomNumber - lastGuessMax)
+            elif (opponent_statements[(len(PlayerTwo.guessed_numbers) - 1)]).lower().find("very warm") > 0:
                 print("PLAYER - Crap, I REALLY went the wrong way.")
                 # lastGuessMin & lastGuessMax should influence our decension here
                 guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - abs(lastGuessMin)
-                guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] + abs(maxRandomNumber - lastGuessMax)
+                guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] + abs(
+                    maxRandomNumber - lastGuessMax)
             elif (opponent_statements[(len(PlayerTwo.guessed_numbers) - 1)]).lower().find("very cold") > 0:
 
-                #the very cold value is something we want to avoid
+                # the very cold value is something we want to avoid
                 veryCold = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2]
                 cold = lastPlayerGuess
                 if cold - veryCold > veryCold - cold:
@@ -937,30 +1163,35 @@ def smartAI():
                     guessMax = lastPlayerGuess - 1
             else:
                 print("PLAYER - uh shit")
-                #if we're guessing low, go high
+                # if we're guessing low, go high
                 guessMin = lastPlayerGuess + lastGuessMin
                 guessMax = lastPlayerGuess + lastGuessMax
         elif mostRecentStatement.lower().find("warm") > 0:  # guess is okay
             # we're in the ball park
             # PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]
-            #opponent_statements[(len(opponent_statements) - 4)].lower().find("very warm")
+            # opponent_statements[(len(opponent_statements) - 4)].lower().find("very warm")
             if opponent_statements[(len(opponent_statements) - 2)].lower().find("very warm") > 0:
-                #we went the wrong way, turn back
+                # we went the wrong way, turn back
                 print("PLAYER - Warm, but I went the wrong way.")
-                guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - (PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2])
+                guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - (
+                            PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - PlayerTwo.guessed_numbers[
+                        len(PlayerTwo.guessed_numbers) - 2])
                 guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] + 1
             elif opponent_statements[(len(opponent_statements) - 2)].lower().find("warm") > 0:
-                #we're flailing in the dark around a possible number
-                #try to guess COLD
+                # we're flailing in the dark around a possible number
+                # try to guess COLD
                 print("PLAYER - I'm testing a theory, my next guess will be COLD.")
-                #The last two guesses are warm
-                #PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2]
-                #PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]
-                if PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] > PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2]:
-                    guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] - abs(maxRandomNumber - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2])
+                # The last two guesses are warm
+                # PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2]
+                # PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]
+                if PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] > PlayerTwo.guessed_numbers[
+                    len(PlayerTwo.guessed_numbers) - 2]:
+                    guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2] - abs(
+                        maxRandomNumber - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2])
                     guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]
                 else:
-                    guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - abs(maxRandomNumber - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2])
+                    guessMin = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1] - abs(
+                        maxRandomNumber - PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2])
                     guessMax = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2]
             elif opponent_statements[(len(opponent_statements) - 2)].lower().find("cold") > 0:
                 print("PLAYER - I'm so confused.")
@@ -968,7 +1199,7 @@ def smartAI():
                 guessMax = lastPlayerGuess + 30
             elif opponent_statements[(len(opponent_statements) - 2)].lower().find("very cold") > 0:
 
-                #what changed?
+                # what changed?
                 veryCold = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 2]
                 warm = PlayerTwo.guessed_numbers[len(PlayerTwo.guessed_numbers) - 1]
                 if warm > veryCold:
@@ -982,19 +1213,17 @@ def smartAI():
                     guessMin = abs(lastPlayerGuess - lastGuessMin)
                     guessMax = lastPlayerGuess - 1
 
-                guessMin = random.randint(1,(maxRandomNumber // 2))
+                guessMin = random.randint(1, (maxRandomNumber // 2))
                 guessMax = maxRandomNumber
             else:
                 print("PLAYER - Crap.")
                 guessMin = lastPlayerGuess - 20
                 guessMax = lastPlayerGuess + 20
         else:
-            print ("PLAYER - This is too hard.")
-    else: # first round of a game!!!
+            print("PLAYER - This is too hard.")
+    else:  # first round of a game!!!
         needSuggestionLower = True
         needSuggestionUpper = True
-
-
 
     playerInternalDialog(newThought)
     if needSuggestionUpper:
@@ -1025,7 +1254,7 @@ def smartAI():
     while True:
         i = i + 1
         playerGuess = random.randint(guessMin, guessMax)
-        if not(playerGuess in PlayerTwo.guessed_numbers):
+        if not (playerGuess in PlayerTwo.guessed_numbers):
             print("DANG TRIED TO GUESS A DUPLICATE NUMBER")
             break
         if i > 100:
@@ -1045,6 +1274,7 @@ def smartAI():
     lastGuessMin = guessMin
     lastGuessWidth = guessWidth
 
+
 # COMPUTER opponent compares the player guess and gives feed back
 def oponentReply():
     global currentGuessOff
@@ -1058,7 +1288,8 @@ def oponentReply():
     # Compare guess to secretNumber
     if playerGuess == GameWorld.secret_number:
         # they got it correct!
-        openentStatement = "COMPUTER - I AM SAD, YOU HAVE GUESSED MY SECRET NUMBER. COMPUTER - IT TOOK YOU " + str(thisGameTotalGuesses) + " ATTEMPTS, WHICH IS LAUGHABLE."
+        openentStatement = "COMPUTER - I AM SAD, YOU HAVE GUESSED MY SECRET NUMBER. COMPUTER - IT TOOK YOU " + str(
+            thisGameTotalGuesses) + " ATTEMPTS, WHICH IS LAUGHABLE."
         opponent_statements.append(openentStatement)
 
     elif (currentGuessOff > 50):
@@ -1099,6 +1330,7 @@ def oponentReply():
         guessOutcomes.update(newOutcome)
     # guessOutcomes
 
+
 def newGuess():
     global allTimeGuesses
     global reusedGuessesInt
@@ -1121,6 +1353,9 @@ def newGuess():
         jugAI()
     elif holmes_AI_on:
         holmesAI()
+    elif moriarty_AI_on:
+        professor_moriarty()
+        print("moriarty finished. playerGuess= ", playerGuess)
     else:
         playerGuess = random.randint(guessMin, guessMax)
 
@@ -1137,6 +1372,7 @@ def newGuess():
     if slow_game:
         time.sleep(.300)
 
+
 def generateGame():
     global playerIQ
     global maxRandomNumber
@@ -1146,6 +1382,10 @@ def generateGame():
     global suspectedNumber
     global guessOutcomes
     global lastPlayerGuess
+    global side_padding
+    global block_height
+    global block_width
+    global guess_blocks
 
 
     # reset all guessed
@@ -1154,7 +1394,7 @@ def generateGame():
     Guessed.cold = []
     Guessed.warm = []
     Guessed.numbers = []
-
+    guess_blocks = []
 
     # this is a new game until the first turn is resolved
     # clean up re-used globals
@@ -1170,18 +1410,35 @@ def generateGame():
     GameWorld.secret_number = random.randint(1, GameWorld.max_random_number)
     maxRandomNumber = GameWorld.max_random_number
 
-    playerIQ = random.randint(1,10)
+    # clean up the game window
+    win.fill((0, 0, 0))
+    pygame.display.flip()
+    row = (GameWorld.secret_number // 15) + 1
+    col = 15 - ((row * 15) - GameWorld.secret_number)
+    x = (block_width * col) + side_padding
+    y = (block_width * row) + side_padding
+    color = (220, 220, 220)
+    # draw our secret number
+    print("Adding block ", x, y, ".")
+    pygame.draw.rect(win, color, ((x, y), (block_height, block_width)))
+    pygame.display.update((x, y), (block_height, block_width))
+    guess_blocks.append([(color), (x, y, block_height, block_width)])
+    time.sleep(2)
+    playerIQ = random.randint(1, 10)
+
 
 def playGame():
     # globals
     # TODO: do away with all these damn globals
     global playerGuess
-
+    global background_colour
     global gamesPlayed
     global allTimeGuesses
     # global maxRandomNumber
     global reusedGuessesInt
     global currentGuessOff
+    global win
+    global guess_blocks
 
     global thisGameTotalGuesses
 
@@ -1198,11 +1455,11 @@ def playGame():
     if gamesPlayed > GameWorld.games_per_session:
         return
 
-
     print("")
     print("---------------[GAME " + str(gamesPlayed) + "]---------------")
     print("")
-    print("Guess a number between 1 and " + str(GameWorld.max_random_number) + ". [the secret is " + str(GameWorld.secret_number) + "]")
+    print("Guess a number between 1 and " + str(GameWorld.max_random_number) + ". [the secret is " + str(
+        GameWorld.secret_number) + "]")
 
     # start the guessing game
     if playerGuess == -1:
@@ -1210,10 +1467,11 @@ def playGame():
 
     # Guess a new number
     while playerGuess != GameWorld.secret_number:
+        draw_window(guess_blocks, win)
         print(" ")
         # Each iteration of this loop is a new turn
         GameWorld.turn_number = GameWorld.turn_number + 1
-        print("[TURN "+str(GameWorld.turn_number)+"- SECRET:"+str(GameWorld.secret_number)+"]")
+        print("[TURN " + str(GameWorld.turn_number) + "- SECRET:" + str(GameWorld.secret_number) + "]")
         # decide what type of guess we're going to make
         # wild - guess any damn number
         # educated guess within X of last number
@@ -1236,13 +1494,16 @@ def playGame():
 
     # player guesses a unique number
 
+
 def playerReply():
     global playerGuess
     global guessMin
     global guessMax
 
     # TODO: get dynamic player name here
+
     print("PLAYER - [" + str(guessMin) + "-" + str(guessMax) + "]... I GUESS: " + str(playerGuess))
+
 
 def report():
     print("")
@@ -1273,8 +1534,16 @@ def report():
     #    print(statement)
 
 
-while gamesPlayed <= GameWorld.games_per_session:
+def draw_window(guess_blocks, win):
+    global background_colour
+    win.fill(background_colour)
+    # re draw all the rects
+    for color, rect in guess_blocks:
+        pygame.draw.rect(win, color, rect)
+        #print("drawing blocks!")
+    pygame.display.update()
 
+while gamesPlayed <= GameWorld.games_per_session:
     generateGame()
     playGame()
 
@@ -1311,3 +1580,6 @@ print("Script completed in:", run_time)
 # for statement in guessOutcomes.items():
 #    print(statement)
 '''
+
+# for guess in guesses_made.:
+#    print(guess.
