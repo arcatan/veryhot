@@ -69,7 +69,7 @@ thisGameTotalGuesses = 0
 
 # Game Window
 screen_width = 532
-screen_height = 500
+screen_height = 564
 win = pygame.display.set_mode((screen_width, screen_height))
 background_colour = (0, 0, 0)
 win.fill(background_colour)
@@ -85,16 +85,53 @@ side_padding = 10
 class Guess:
     last_guess_uid = 0
 
-    def __init__(self, guess_ID):
+    def __init__(self, guess_ID, playerGuess):
         self.guess_UID = guess_ID
         self.guesser = ""
-        self.guessed_number = 0
+        self.guessed_number = playerGuess
         self.result = ""
         self.game = 0
         self.x = 0
         self.y = 0
         self.height = 32
         self.width = 32
+        self.color = ()
+
+
+class FrogAI:
+    def __int__(self):
+        self.guessed_numbers = []
+        self.suspected_numbers = {}
+        self.last_guess = 0
+        self.guess_count = 0
+        self.game_count = 0
+        self.next_guess = 0
+
+    def reset(self):
+        # reset the frog AI for a new game
+        self.guess_count = 0
+        self.guessed_numbers = []
+        self.last_guess = 0
+        self.next_guess = 0
+        self.suspected_numbers = {}
+
+
+    def detective():
+        # predict the number
+        pass
+
+    def victory():
+        # what the frog does when it wins
+        pass
+
+    def defeat():
+        # what frog does if it loses
+        pass
+
+    def guess():
+        # frog guesses
+        # returns playerGuess
+        pass
 
 
 class GameWorld:
@@ -291,7 +328,13 @@ def recordVictory():
     game_update = {gamesPlayed: GameWorld.turn_number}
     GameWorld.total_guess_each_game.update(game_update)
 
-def draw_guess(win, playerGuess, side_padding, block_height, block_width, guess_blocks):
+
+def draw_guess(win, playerGuess, color):
+    global side_padding
+    global block_width
+    global block_height
+    global guess_blocks
+
     x = 0
     y = 0
     row = 0
@@ -301,7 +344,7 @@ def draw_guess(win, playerGuess, side_padding, block_height, block_width, guess_
     # col = 15 - (((row + 1) * 15) - playerGuess)
     x = (block_width * col) + side_padding
     y = (block_width * row) + side_padding
-    color = (0, 255, 255)
+    color = color
     # draw our secret number
     print("Adding Guess! ", x, y, ".")
     # new_guess = (win, color, ((x, y), (block_height, block_width)))
@@ -385,13 +428,44 @@ def detective_holmes():
     # add last guess to group
     if opponent_statements[(len(opponent_statements) - 1)].lower().find("very warm") > 0:
         Holmes.known_very_warm.append(lastPlayerGuess)
+        holmes_confidence(lastPlayerGuess + 1, 10)
+        holmes_confidence(lastPlayerGuess - 1, 10)
     elif opponent_statements[(len(opponent_statements) - 1)].lower().find("warm") > 0:
         Holmes.known_warm.append(lastPlayerGuess)
+        holmes_confidence(lastPlayerGuess + 1, -10)
+        holmes_confidence(lastPlayerGuess - 1, -10)
     elif opponent_statements[(len(opponent_statements) - 1)].lower().find("very cold") > 0:
         Holmes.known_very_cold.append(lastPlayerGuess)
+        holmes_confidence(lastPlayerGuess + 1, -100)
+        holmes_confidence(lastPlayerGuess - 1, -100)
     else:
         Holmes.known_cold.append(lastPlayerGuess)
+        holmes_confidence(lastPlayerGuess + 1, -50)
+        holmes_confidence(lastPlayerGuess - 1, -50)
 
+    if len(Holmes.known_warm) >= 2 and len(Holmes.known_cold) > 1 and len(Holmes.known_very_cold) > 1:
+        suspected_mean_very_warm = 0
+        mean_warm = statistics.mean(Holmes.known_warm)
+        cold_range = range(min(Holmes.known_cold), max(Holmes.known_cold))
+        closest_cold = [0, 0]
+        if mean_warm in cold_range:
+            # we have cold values above and below warm
+            # zero in on the largest gap
+            number_offset = 0
+            if min(Holmes.known_warm) < min(Holmes.known_cold):
+                distance = min(Holmes.known_cold) - min(Holmes.known_warm)
+                holmes_confidence(mean_warm - distance, 10)
+            elif max(Holmes.known_warm) > max(Holmes.known_cold):
+                distance = max(Holmes.known_warm) - max(Holmes.known_cold)
+                holmes_confidence(mean_warm + distance, 10)
+
+            for number in range(min(Holmes.known_cold), max(Holmes.known_cold)):
+                holmes_confidence(number, -20)
+
+        else:
+            # cold values are only on one side of the warm range
+            pass
+        pass
     if len(Holmes.known_very_warm) >= 2:
         Holmes.very_warm_width = max(Holmes.known_very_warm) - min(Holmes.known_very_warm)
         print("[HOLMES] - LVW ", min(Holmes.known_very_warm), ", HVW ", max(Holmes.known_very_warm))
@@ -427,20 +501,60 @@ def detective_holmes():
     if len(Holmes.known_very_warm) < 1 and len(Holmes.known_very_cold) > 3:
         # we know many very colds, and no very warm
         print("[HOLMES] - I know very cold values. Shouldn't I be able to deduce where very warm is???")
+        very_cold_width = max(Holmes.known_very_cold) - min(Holmes.known_very_cold)
+        if GameWorld.max_random_number // very_cold_width == 1:
+            # very large range
 
+            pass
+        elif GameWorld.max_random_number // very_cold_width > 1:
+            # half of the numbers
+            pass
+        elif GameWorld.max_random_number // very_cold_width > 2:
+            # a third, we're getting close
+            pass
+        else:
+            pass
+
+    if GameWorld.turn_number > 2:
+        if opponent_statements[(len(opponent_statements) - 1)].lower().find("warm") > 0:
+            if opponent_statements[(len(opponent_statements) - 2)].lower().find("very warm") > 0:
+                # we need to turn Holmes around and guess the other direction
+                direction = lastPlayerGuess - guesses_made[(len(guesses_made) - 2)].guessed_number
+                if direction > 0:
+                    # go down
+                    for number in range((lastPlayerGuess - direction), lastPlayerGuess - 1):
+                        holmes_confidence(number, 5)
+                        print("[HOLMES] - Went from very warm, to just warm. I was wrong. The number is down.")
+                else:
+                    # go up
+                    for number in range((lastPlayerGuess - 1), (lastPlayerGuess + direction)):
+                        holmes_confidence(number, 5)
+                        print("[HOLMES] - Went from very warm, to just warm. I was wrong. The number is up.")
+
+
+                pass
+    elif GameWorld.turn_number == 2 and opponent_statements[(len(opponent_statements) - 1)].lower().find("cold") > 0:
+        holmes_confidence(1, -1)
+        holmes_confidence(GameWorld.max_random_number, -1)
+        opposite_number = GameWorld.max_random_number - lastPlayerGuess
+        holmes_confidence(opposite_number, 25)
     print("[HOLMES] - Detective Holmes ran - widths: vw ", Holmes.very_warm_width, ", w ", Holmes.warm_width)
 
 
 def holmesAI():
+    global win
+    global opponent_statements
+    global playerGuess
+
+
     global guessMax
     global guessMin
-    global playerGuess
-    global opponent_statements
+
     global lastPlayerGuess
     global guess_ID
     global block_width
     global block_height
-    global win
+
     global side_padding
 
     # if it's a new game, wipe Holmes' memory for the new game
@@ -470,7 +584,53 @@ def holmesAI():
                 high_number = GameWorld.max_random_number
             for number in range(low_number, high_number):
                 holmes_confidence(number, 10)
+    if len(Holmes.known_very_warm) > 2:
+        top_very_warm = max(Holmes.known_very_warm)
+        bottom_very_warm = min(Holmes.known_very_warm)
+        gaps = 0
+        last_number = 0
+        for number in range(top_very_warm, bottom_very_warm):
+            if last_number > 0:
+                gaps = gaps + last_number - number
+            if not number in Holmes.known_very_warm:
+                holmes_confidence(number, 1)
+            last_number = number
+        if gaps > 1:
+            # numbers are not contiguous
+            leap = top_very_warm + 5
+            if leap in Holmes.known_cold:
+                holmes_confidence(leap, -20)
+                holmes_confidence(leap - 1, -20)
+                holmes_confidence(leap + 1, -20)
+            elif leap in Holmes.known_very_cold:
+                holmes_confidence(leap, -20)
+                holmes_confidence(leap - 1, -20)
+                holmes_confidence(leap + 1, -20)
+            elif leap in Holmes.known_warm:
+                pass
 
+            holmes_confidence(top_very_warm + 5, 10)
+            holmes_confidence(bottom_very_warm + 5, 10)
+            pass
+        else:
+            # numbers are contiguous
+            pass
+    if GameWorld.turn_number > 6 and len(Holmes.known_very_warm) > 2:
+        width = max(Holmes.known_very_warm) - min(Holmes.known_very_warm)
+        if width > 5:
+            if GameWorld.max_random_number - max(Holmes.known_very_warm) > GameWorld.max_random_number - min(Holmes.known_very_warm):
+                holmes_confidence((max(Holmes.known_very_warm)) + width, 15)
+            else:
+                holmes_confidence((min(Holmes.known_very_warm)) - width, 15)
+        else:
+            if GameWorld.max_random_number - max(Holmes.known_very_warm) > GameWorld.max_random_number - min(Holmes.known_very_warm):
+                holmes_confidence((max(Holmes.known_very_warm)) + 5, 15)
+            else:
+                holmes_confidence((min(Holmes.known_very_warm)) - 5, 15)
+        if len(Holmes.known_cold) > 0:
+            for number in Holmes.known_cold:
+                for i in range(1,len(Holmes.known_cold)):
+                    holmes_confidence((number + 1), -10)
     # update confidence rating based on last guess
     if GameWorld.turn_number > 1:
         up_one = lastPlayerGuess + 1
@@ -618,9 +778,9 @@ def holmesAI():
     Holmes.used_numbers.append(player_guess)
     # TODO: Add Guess class
     Guess.last_guess_uid = Guess.last_guess_uid + 1
-    new_guess = Guess(Guess.last_guess_uid)
+    new_guess = Guess(Guess.last_guess_uid, playerGuess)
     guesses_made.append(new_guess)
-    draw_guess(win, playerGuess, side_padding, block_height, block_width, guess_blocks)
+    # draw_guess(win, playerGuess, side_padding, block_height, block_width, guess_blocks)
     return playerGuess
 
 
@@ -1275,60 +1435,72 @@ def smartAI():
     lastGuessWidth = guessWidth
 
 
-# COMPUTER opponent compares the player guess and gives feed back
-def oponentReply():
-    global currentGuessOff
-    global playerGuess
-    global lastGuessOff
-    global thisGameTotalGuesses
-    global opponent_statements
-    global guessOutcomes
 
-    oponentStatement = ""
-    # Compare guess to secretNumber
+
+
+
+# COMPUTER opponent compares the player guess and gives feed back
+def opponent_reply():
+    global thisGameTotalGuesses
+    global guessOutcomes
+    global playerGuess
+    global opponent_statements
+    global win
+    global side_padding
+    global block_height
+    global block_width
+
+    opponent_statement = ""
     if playerGuess == GameWorld.secret_number:
         # they got it correct!
-        openentStatement = "COMPUTER - I AM SAD, YOU HAVE GUESSED MY SECRET NUMBER. COMPUTER - IT TOOK YOU " + str(
+        opponent_statement = "COMPUTER - I AM SAD, YOU HAVE GUESSED MY SECRET NUMBER. COMPUTER - IT TOOK YOU " + str(
             thisGameTotalGuesses) + " ATTEMPTS, WHICH IS LAUGHABLE."
-        opponent_statements.append(openentStatement)
-
+        opponent_statements.append(opponent_statement)
+        color = (255, 0, 0)
     elif (currentGuessOff > 50):
-        openentStatement = "COMPUTER - VERY COLD, GUESS AGAIN"
+        opponent_statement = "COMPUTER - VERY COLD, GUESS AGAIN"
         PlayerTwo.very_cold_guess.insert(0, playerGuess)
         lastGuessOff = currentGuessOff
-        opponent_statements.append(openentStatement)
+        opponent_statements.append(opponent_statement)
         Guessed.very_cold.append(playerGuess)
-    elif (currentGuessOff > 25):
-        openentStatement = "COMPUTER - COLD, GUESS AGAIN"
+        color = (0, 100, 117)
+    elif (currentGuessOff > 30):
+        opponent_statement = "COMPUTER - COLD, GUESS AGAIN"
         PlayerTwo.cold_guess.insert(0, playerGuess)
         lastGuessOff = currentGuessOff
-        opponent_statements.append(openentStatement)
+        opponent_statements.append(opponent_statement)
         Guessed.cold.append(playerGuess)
+        color = (0, 195, 227)
     elif (currentGuessOff > 10):
-        openentStatement = "COMPUTER - WARM, GUESS AGAIN"
+        opponent_statement = "COMPUTER - WARM, GUESS AGAIN"
         PlayerTwo.warm_guess.insert(0, playerGuess)
         lastGuessOff = currentGuessOff
-        opponent_statements.append(openentStatement)
+        opponent_statements.append(opponent_statement)
         Guessed.warm.append(playerGuess)
+        color = (223, 94, 0)
     elif (currentGuessOff > 0):
         # a very good guess, stay at it
-        openentStatement = "COMPUTER - VERY WARM, GUESS AGAIN"
+        opponent_statement = "COMPUTER - VERY WARM, GUESS AGAIN"
         PlayerTwo.very_warm_guess.insert(0, playerGuess)
         Guessed.very_warm.append(playerGuess)
 
         lastGuessOff = currentGuessOff
-        opponent_statements.append(openentStatement)
+        opponent_statements.append(opponent_statement)
+        color = (24, 255, 13)
     else:
-        openentStatement = "Something went wrong"
+        opponent_statement = "Something went wrong"
     # print("[secret=" + str(secretNumber) + "]")
-    print(openentStatement)
-    newOutcome = {playerGuess: openentStatement}
+    print(opponent_statement)
+    newOutcome = {playerGuess: opponent_statement}
     # print(newOutcome)
     if playerGuess in guessOutcomes:
         guessOutcomes.update(newOutcome)
     else:
         guessOutcomes.update(newOutcome)
     # guessOutcomes
+
+    # draw_guess(win, playerGuess, side_padding, block_height, block_width, guess_blocks, color)
+    draw_guess(win, playerGuess, color)
 
 
 def newGuess():
@@ -1352,10 +1524,15 @@ def newGuess():
         # this returns a guess
         jugAI()
     elif holmes_AI_on:
+        # this returns a guess
         holmesAI()
     elif moriarty_AI_on:
+        # this returns a guess
         professor_moriarty()
         print("moriarty finished. playerGuess= ", playerGuess)
+    elif frog_AI_on:
+        # this returns a guess
+        frogAI()
     else:
         playerGuess = random.randint(guessMin, guessMax)
 
@@ -1395,6 +1572,10 @@ def generateGame():
     Guessed.warm = []
     Guessed.numbers = []
     guess_blocks = []
+
+    # setup players
+    # frog = FrogAI()
+
 
     # this is a new game until the first turn is resolved
     # clean up re-used globals
@@ -1445,6 +1626,8 @@ def playGame():
     thisGameTotalGuesses = 0
     GameWorld.turn_number = 0
 
+    # frog.reset()
+
     # locals
     guessMin = 1
     guessMax = GameWorld.max_random_number
@@ -1486,11 +1669,11 @@ def playGame():
             # player has guessed the answer
             gamesPlayed = gamesPlayed + 1
             PlayerTwo.total_guesses = PlayerTwo.total_guesses + thisGameTotalGuesses
-            oponentReply()
+            opponent_reply()
             break
         else:
             # Guess was wrong, continue guessing
-            oponentReply()
+            opponent_reply()
 
     # player guesses a unique number
 
