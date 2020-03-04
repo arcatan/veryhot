@@ -77,6 +77,7 @@ pygame.display.flip()
 side_padding = 10
 (block_height, block_width) = (32, 32)
 
+# A MAJOR CHANGE IN THE DEVELOP BRANCH
 
 # game rows / cols
 # 15 x 15 = 225
